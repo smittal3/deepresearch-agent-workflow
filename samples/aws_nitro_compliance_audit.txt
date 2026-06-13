@@ -1,0 +1,49 @@
+================================================================================
+MEMORANDUM: CONFIDENTIAL INFRASTRUCTURE EVALUATION 
+TO: Managing Partners, Seattle Ventures
+FROM: Consulting AWS Infrastructure Architect (Redacted)
+DATE: May 22, 2026
+SUBJECT: Veriscrypt "VerisCore-1" FHE ASIC - EC2 Deployment Feasibility
+================================================================================
+
+[1. OVERVIEW OF CLOUD DEPLOYMENT CLAIMS]
+We have been asked to review Veriscrypt AI's claim that they are currently 
+deploying 64 physical VerisCore-1 ASIC cards into multi-tenant production 
+racks at AWS (us-west-2). According to the founders, to achieve their 0% 
+latency overhead, their hardware operates via "bare-metal access, bypassing 
+the standard Nitro hypervisor layer" to interact directly with encrypted 
+Llama-3 memory states.
+
+[2. ARCHITECTURAL COMPLIANCE ANALYSIS]
+Based on strict AWS hardware security mandates, the deployment architecture 
+described by Veriscrypt AI raises immediate, critical red flags.
+
+* The AWS Nitro System Mandate: Since 2018, all newly deployed AWS EC2 
+  compute instances are powered by the AWS Nitro System. A core security 
+  guarantee of the Nitro System is that NO third-party hardware or software 
+  can bypass the Nitro Hypervisor in a multi-tenant environment. 
+
+* PCIe Integration & Nitro Controllers: Any custom accelerator card (such as 
+  NVIDIA GPUs, Trainium, or third-party ASICs) MUST physically connect to the 
+  system mainboard via PCIe and be logically isolated by a Nitro Card. The 
+  Nitro Controller explicitly prevents direct bare-metal memory sharing 
+  between a third-party co-processor and the host CPU without passing 
+  through the encrypted Nitro fabric.
+
+* Nitro Enclaves Compatibility: For highly sensitive cryptographic operations, 
+  AWS utilizes Nitro Enclaves. Enclaves have no persistent storage and no 
+  external networking. Veriscrypt's claim that their ASICs are directly 
+  serving external API requests while bypassing Nitro isolation violates the 
+  fundamental cryptographic attestation process required by AWS Key 
+  Management Service (KMS).
+
+[3. CONCLUSION & RISK ASSESSMENT]
+The claim that Veriscrypt has bypassed the Nitro System to achieve 1:1 speed 
+parity in a live, multi-tenant AWS datacenter is fundamentally incompatible 
+with AWS's published physical security and network isolation architecture. 
+
+It is highly probable that Veriscrypt is running local, on-premise 
+simulations in their own lab and falsely labeling it as an "AWS EC2 Pilot" 
+by simply routing their local traffic through a standard AWS API gateway.
+
+================================================================================
