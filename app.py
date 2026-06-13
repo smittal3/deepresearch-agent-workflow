@@ -352,6 +352,8 @@ with st.sidebar:
     st.header("⚙️ Setup")
 
     env_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if "your_" in env_key:  # ignore the .env.example placeholder if left unedited
+        env_key = ""
     if env_key:
         # Key already provided via .env / environment — no need to paste anything.
         st.success("✓ API key detected from `.env`")
@@ -376,6 +378,22 @@ with st.sidebar:
             )
 
     st.caption(f"Model: **{MODEL}**")
+
+    # Web search uses Tavily (separate key). Optional — without it the web agent is skipped.
+    env_tavily = os.getenv("TAVILY_API_KEY", "").strip()
+    if "your_" in env_tavily:  # ignore the .env.example placeholder
+        env_tavily = ""
+    tavily_key = st.text_input(
+        "Tavily API key (web search)",
+        type="password",
+        value=env_tavily,
+        help="Powers the Web Researcher agent. Free tier at tavily.com. "
+             "Leave blank to run without live web search.",
+        placeholder="tvly-...",
+    ).strip()
+    if not tavily_key:
+        st.caption("⚠️ No Tavily key — the web-search agent will be skipped.")
+
     st.caption("Your key stays in this session only — it is never stored.")
     st.divider()
     st.markdown("**Pipeline**")
@@ -646,6 +664,7 @@ if phase == "running":
                 "doc_name": ", ".join(names),
                 "doc_names": names,
                 "api_key": api_key,
+                "tavily_api_key": tavily_key,
                 "model": MODEL,
             }
 

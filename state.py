@@ -99,6 +99,7 @@ class ResearchState(TypedDict, total=False):
     document_text: str          # raw extracted text from the uploaded file ("" if none)
     has_document: bool
     api_key: str
+    tavily_api_key: str   # separate key for Tavily web search ("" if not provided)
     model: str
     doc_name: str
     doc_names: list   # individual file names when multiple documents are provided

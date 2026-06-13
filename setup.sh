@@ -18,5 +18,7 @@ pip install -r requirements.txt
 
 echo ""
 echo "✅ Setup complete."
-echo "Next: copy .env.example to .env and add your OpenRouter key (or paste it in the app sidebar)."
+echo "Next: copy .env.example to .env and add your keys (or paste them in the app sidebar):"
+echo "  - OPENROUTER_API_KEY  (required)  https://openrouter.ai/keys"
+echo "  - TAVILY_API_KEY      (optional, for web search)  https://app.tavily.com"
 echo "Then run:  bash run.sh"

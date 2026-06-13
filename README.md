@@ -7,7 +7,7 @@ a decision-ready dashboard — _"how competitive is this, and should I invest?"_
 | Agent | Role | Tech |
 |---|---|---|
 | 📄 **Document Analyst** | Extracts claims & metrics from your file (PDF/DOCX/PPTX/TXT) | Document-in-context reading |
-| 🌐 **Web Researcher** | Current sources, consensus & disagreement | DuckDuckGo search |
+| 🌐 **Web Researcher** | Current sources, consensus & disagreement | Tavily search |
 | 🔬 **Technical Validator** | Validates the underlying science | arXiv |
 | 🧠 **Senior Analyst** | Cross-examines all sources → JSON report | LangChain structured output |
 
@@ -21,16 +21,18 @@ then the analyst synthesizes). UI is **Streamlit**.
 - 🎯 **Adaptive scorecard** — the analyst picks 3-5 evaluation dimensions that fit
   *your* query (a startup vs. a scientific claim get different rubrics), each scored 1-5.
 
-> **One key for everything.** All four agents *and* the image-PDF vision OCR run
-> through **OpenRouter**, so each teammate only needs a single `OPENROUTER_API_KEY`.
-> Swap the model in `llm.py` to any OpenRouter model id.
+> **Keys.** All LLM work (four agents + image-PDF vision OCR) runs through **OpenRouter** —
+> one `OPENROUTER_API_KEY`. Web search uses **Tavily** (`TAVILY_API_KEY`, free tier, optional —
+> the web agent is skipped without it). Swap the model in `llm.py` to any OpenRouter id.
 
 ---
 
 ## Quick start
 
-### 0. Get an API key (30 seconds)
-Go to **https://openrouter.ai/keys** → **Create Key** → copy it.
+### 0. Get your API keys (1 minute)
+- **OpenRouter** (required) — **https://openrouter.ai/keys** → **Create Key** → copy it.
+- **Tavily** (optional, for web search) — **https://app.tavily.com** → copy the key.
+  Free tier; without it the Web Researcher agent is skipped.
 
 ### 1. Setup
 
@@ -50,11 +52,12 @@ This creates a `.venv` and installs everything from `requirements.txt`.
 > [python.org](https://www.python.org/downloads/) or Homebrew works great.
 > Python 3.9 is **not** supported (a dependency uses 3.10+ syntax).
 
-### 2. Add your key (optional)
-Either paste the key into the app's **sidebar** at runtime, or create a `.env`:
+### 2. Add your keys
+Either paste them into the app's **sidebar** at runtime, or create a `.env`:
 ```bash
-cp .env.example .env      # then edit .env and paste your key
+cp .env.example .env      # then edit .env and paste your keys
 ```
+`.env` holds `OPENROUTER_API_KEY` (required) and `TAVILY_API_KEY` (optional).
 
 ### 3. Run
 
@@ -90,8 +93,9 @@ setup.bat
 (or just double-click `setup.bat` in Explorer). This builds a `.venv` and installs
 everything — first run takes a few minutes.
 
-**5. Add your OpenRouter key** — copy `.env.example` to `.env` and paste your key in, *or*
-skip this and paste it into the app's sidebar at runtime.
+**5. Add your keys** — copy `.env.example` to `.env` and paste in your `OPENROUTER_API_KEY`
+(required) and `TAVILY_API_KEY` (optional, for web search), *or* skip this and paste them
+into the app's sidebar at runtime.
 
 **6. Launch (now and every time after):**
 ```bat
@@ -135,8 +139,9 @@ setup.* / run.*   Cross-platform setup & launch scripts
 ```
 
 ## Notes & troubleshooting
-- **Web search returns nothing / errors:** DuckDuckGo occasionally rate-limits.
-  The app degrades gracefully (the analyst notes the gap); just re-run.
+- **Web search needs a Tavily key:** the Web Researcher uses [Tavily](https://app.tavily.com)
+  (free tier). Add `TAVILY_API_KEY` to `.env` or paste it in the sidebar. Without it, that
+  agent is skipped and the app still runs on the document + academic agents.
 - **Swap the model:** `MODEL` in `llm.py` takes any OpenRouter model id
   (e.g. `openai/gpt-4o-mini`, `anthropic/claude-3.5-sonnet`). The synthesis report
   needs a tool-calling model; image-PDF OCR needs a multimodal one (the default is both).

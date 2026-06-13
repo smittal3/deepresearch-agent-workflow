@@ -79,7 +79,7 @@ def rag_agent(state: ResearchState) -> dict:
 
 
 # --------------------------------------------------------------------------- #
-# Agent 2 — Web search: the market pulse (DuckDuckGo)
+# Agent 2 — Web search: the market pulse (Tavily)
 # --------------------------------------------------------------------------- #
 WEB_SYSTEM = (
     "You are a Web Researcher. Using the supplied search results, synthesize what "
@@ -100,6 +100,14 @@ WEB_SYSTEM = (
 
 
 def web_agent(state: ResearchState) -> dict:
+    tavily_key = state.get("tavily_api_key", "") or ""
+    if not tavily_key:
+        return {
+            "web_notes": "[Web search skipped: no Tavily API key was provided.] "
+            "Proceeding without live web data.",
+            "web_sources": [],
+        }
+
     api_key = state["api_key"]
     llm = get_llm(state["model"], api_key, temperature=0.3)
 
@@ -130,24 +138,25 @@ def web_agent(state: ResearchState) -> dict:
     sources: list[dict] = []
     seen_urls: set[str] = set()
     try:
-        from ddgs import DDGS
+        from tavily import TavilyClient
 
-        with DDGS() as ddgs:
-            for q in queries:
-                try:
-                    for r in ddgs.text(q, max_results=4):
-                        url = r.get("href", "")
-                        snippets.append(
-                            f"- {r.get('title', '')}: {r.get('body', '')} ({url})"
-                        )
-                        if url and url not in seen_urls:
-                            seen_urls.add(url)
-                            sources.append({"title": r.get("title", "") or url, "url": url})
-                except Exception as e:  # noqa: BLE001 - one bad query shouldn't kill the rest
-                    snippets.append(f"[search error for '{q}': {e}]")
+        client = TavilyClient(api_key=tavily_key)
+        for q in queries:
+            try:
+                resp = client.search(q, max_results=4, search_depth="basic")
+                for r in resp.get("results", []):
+                    url = r.get("url", "")
+                    snippets.append(
+                        f"- {r.get('title', '')}: {r.get('content', '')} ({url})"
+                    )
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        sources.append({"title": r.get("title", "") or url, "url": url})
+            except Exception as e:  # noqa: BLE001 - one bad query shouldn't kill the rest
+                snippets.append(f"[search error for '{q}': {e}]")
     except Exception as e:  # noqa: BLE001
         return {
-            "web_notes": f"[Web search unavailable: {e}] Proceeding without live market data.",
+            "web_notes": f"[Web search unavailable: {e}] Proceeding without live web data.",
             "web_sources": [],
         }
 
