@@ -1,17 +1,37 @@
-# Sample case study
+# Sample case studies
 
-All files here (`.pdf`, `.docx`, `.pptx`, `.txt`, `.md`) make up **one** sample
-case study. In the app, the **"Try sample case study"** button loads *every* file
-here as the documents for the run, and fills the research query.
+Each **subdirectory** here is one self-contained sample case. The app shows a button
+per case on the input screen; clicking it loads *every* file in that subdirectory as
+the documents for the run and fills in the case's research query.
 
-The query comes from `samples.json`:
+Current cases:
+
+| Folder | Case | What it demonstrates |
+|---|---|---|
+| `startup_due_diligence/` | VC due-diligence on a startup | A compliance audit contradicts the pitch deck → integrity red flag |
+| `smartphone_ban_policy/` | School smartphone-ban decision | A viral parent guide's pseudo-scientific claims fail web + academic fact-checking |
+
+Cases are declared in `samples.json`:
 
 ```json
-{ "case_query": "Act as a Venture Capitalist. ..." }
+{
+  "cases": [
+    {
+      "id": "startup",
+      "label": "Startup due-diligence",
+      "emoji": "🚀",
+      "dir": "startup_due_diligence",
+      "blurb": "Short tooltip shown on hover.",
+      "query": "The research prompt that gets filled in."
+    }
+  ]
+}
 ```
 
-Edit `case_query` to change the prompt. Replace the files with your own to build a
-different case study — no code changes needed.
+**To add a case:** create a new subdirectory, drop your documents in it
+(`.pdf`, `.docx`, `.pptx`, `.txt`, `.md`), and add an entry to `samples.json`
+pointing `dir` at the folder. No code changes needed. A case whose folder has no
+readable files is automatically hidden.
 
 **Image-based PDFs are supported:** if a PDF has no extractable text layer (e.g. a
 pitch deck exported as images), the app automatically transcribes it with Gemini's

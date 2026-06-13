@@ -14,7 +14,9 @@ class DataPoint(BaseModel):
     """A single headline stat for the dashboard metric cards."""
 
     label: str = Field(description="Short name of the metric or fact, e.g. 'Claimed ARR'")
-    value: str = Field(description="The number or short value, e.g. '$2.5M' or '40% MoM'")
+    value: str = Field(
+        description="The value or short finding, e.g. '$2.5M', '40% MoM', or 'No peer-reviewed support'"
+    )
     source: str = Field(
         description="Origin of this fact: one of 'document', 'web', or 'academic'"
     )
@@ -47,7 +49,10 @@ class ResearchReport(BaseModel):
         description="2-4 sentence neutral overview answering the user's query."
     )
     key_data_points: List[DataPoint] = Field(
-        description="3 to 4 of the most important quantitative facts found."
+        description=(
+            "3 to 5 of the most important facts or findings for this query — quantitative "
+            "where the evidence is quantitative, but never fabricate numbers to fill a slot."
+        )
     )
     sentiment_analysis: str = Field(
         description="What the market / public / press currently says (from web research)."
@@ -57,9 +62,10 @@ class ResearchReport(BaseModel):
     )
     contradictions_found: List[str] = Field(
         description=(
-            "The crucial value-add: each item is one specific conflict between the "
-            "internal document's claims and external (web/academic) reality. "
-            "Empty list if none found."
+            "The crucial value-add: each item is one specific, named conflict in the "
+            "evidence — internal document vs. external reality, document vs. document, or "
+            "source vs. source / consensus vs. minority view. Include conspicuous absences "
+            "of expected evidence. Empty list if none found."
         )
     )
     scorecard: List[ScoreItem] = Field(
@@ -69,17 +75,21 @@ class ResearchReport(BaseModel):
             "(a startup vs. a scientific claim need different rubrics)."
         )
     )
-    investment_verdict: str = Field(
+    bottom_line: str = Field(
         description=(
-            "A direct, decision-oriented bottom line (e.g. 'Promising but unproven — "
-            "diligence needed on retention claims')."
+            "A direct, decision-oriented one-to-two sentence answer to the user's query — "
+            "the single most important takeaway (a recommendation, a yes/no with its key "
+            "reason, or the headline conclusion), grounded in the strongest evidence."
         )
     )
     confidence: str = Field(
         description="Your confidence in this assessment: exactly 'High', 'Medium', or 'Low'."
     )
     recommended_questions: List[str] = Field(
-        description="3-5 sharp due-diligence questions a reviewer should ask next."
+        description=(
+            "3-5 sharp, specific questions a careful reviewer should investigate next to "
+            "close the biggest remaining gaps or verify the most load-bearing claims."
+        )
     )
 
 

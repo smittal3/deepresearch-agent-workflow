@@ -1,3 +1,20 @@
 {
-  "case_query": "Act as a Venture Capitalist. I've uploaded the investment and technical files for a startup we are evaluating. Please run a deep due-diligence report on their core technology and market claims. Verify whether their product claims are scientifically valid, and give us a recommendation on whether we should invest in this startup at this $5M seed stage."
+  "cases": [
+    {
+      "id": "startup",
+      "label": "Startup due-diligence",
+      "emoji": "🚀",
+      "dir": "startup_due_diligence",
+      "blurb": "VC evaluating a seed-stage deep-tech startup — do the product claims hold up, and should we invest?",
+      "query": "Act as a Venture Capitalist. I've uploaded the investment and technical files for a startup we are evaluating. Please run a deep due-diligence report on their core technology and market claims. Verify whether their product claims are scientifically valid, and give us a recommendation on whether we should invest in this startup at this $5M seed stage."
+    },
+    {
+      "id": "smartphone",
+      "label": "School phone-ban policy",
+      "emoji": "📵",
+      "dir": "smartphone_ban_policy",
+      "blurb": "School principal weighing a strict smartphone ban — are the viral parent-guide claims scientifically true?",
+      "query": "I am a school principal trying to decide if we should enforce a strict smartphone ban. I've uploaded some feedback from our teachers and a viral guide that parents keep sending me. Can you use the internet and academic research to verify if the claims in this parent guide are scientifically true, and give me a realistic policy recommendation based on the data?"
+    }
+  ]
 }

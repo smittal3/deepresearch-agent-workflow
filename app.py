@@ -179,7 +179,7 @@ def report_to_markdown(query: str, r: dict) -> str:
     lines = [
         "# Deep Research Report",
         f"\n**Query:** {query}\n",
-        f"**Verdict:** {r.get('investment_verdict', '')}  ",
+        f"**Verdict:** {r.get('bottom_line', '')}  ",
         f"**Confidence:** {r.get('confidence', '')}\n",
         "## Executive Summary",
         r.get("executive_summary", ""),
@@ -222,44 +222,72 @@ SAMPLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "samples"
 SAMPLE_EXTS = (".pdf", ".docx", ".pptx", ".txt", ".md")
 
 
-def list_sample_files() -> list[str]:
-    """Filenames in samples/ that the app can load (README.md excluded)."""
-    if not os.path.isdir(SAMPLES_DIR):
+def _list_files_in(dir_path: str) -> list[str]:
+    """Loadable sample filenames in a directory (README/manifest excluded)."""
+    if not os.path.isdir(dir_path):
         return []
-    files = [
-        f for f in sorted(os.listdir(SAMPLES_DIR))
+    return [
+        f for f in sorted(os.listdir(dir_path))
         if f.lower().endswith(SAMPLE_EXTS) and f.lower() != "readme.md"
     ]
-    return files
 
 
-SAMPLE_CASE_QUERY = (
-    "Act as a Venture Capitalist. I've uploaded the investment and technical files for a "
-    "startup we are evaluating. Please run a deep due-diligence report on their core "
-    "technology and market claims. Verify whether their product claims are scientifically "
-    "valid, and give us a recommendation on whether we should invest in this startup at "
-    "this $5M seed stage."
-)
+# Used if samples.json is missing/unreadable so the app still offers one case.
+_DEFAULT_CASE = {
+    "id": "startup",
+    "label": "Startup due-diligence",
+    "emoji": "🚀",
+    "dir": "startup_due_diligence",
+    "blurb": "VC evaluating a seed-stage startup.",
+    "query": (
+        "Act as a Venture Capitalist. I've uploaded the investment and technical files "
+        "for a startup we are evaluating. Please run a deep due-diligence report on their "
+        "core technology and market claims. Verify whether their product claims are "
+        "scientifically valid, and give us a recommendation on whether we should invest "
+        "in this startup at this $5M seed stage."
+    ),
+}
 
 
-def sample_case_query() -> str:
-    """The query that ships with the sample case study (editable via samples.json)."""
+def list_sample_cases() -> list[dict]:
+    """Selectable sample cases from samples/samples.json.
+
+    Each case = {id, label, emoji, dir, blurb, query, files}; `files` is filled from the
+    case's subdirectory. Cases with no readable files are dropped. Falls back to a single
+    case (or a legacy flat `case_query` manifest) so the app never loses the sample button.
+    """
     manifest = os.path.join(SAMPLES_DIR, "samples.json")
+    cases: list[dict] = []
     if os.path.exists(manifest):
         try:
             with open(manifest) as f:
-                return json.load(f).get("case_query") or SAMPLE_CASE_QUERY
+                data = json.load(f)
+            if isinstance(data, dict) and data.get("cases"):
+                cases = list(data["cases"])
+            elif isinstance(data, dict) and data.get("case_query"):
+                # Legacy single-case manifest: treat flat samples/ as one case.
+                cases = [{**_DEFAULT_CASE, "dir": "", "query": data["case_query"]}]
         except Exception:  # noqa: BLE001
-            pass
-    return SAMPLE_CASE_QUERY
+            cases = []
+    if not cases:
+        cases = [_DEFAULT_CASE]
+
+    out: list[dict] = []
+    for c in cases:
+        case = dict(c)
+        case["files"] = _list_files_in(os.path.join(SAMPLES_DIR, case.get("dir", "")))
+        if case["files"]:
+            out.append(case)
+    return out
 
 
-def load_sample_documents(api_key: str = "") -> tuple[str, list[str]]:
-    """Read every file in samples/ into one combined text blob + the list of names."""
+def load_sample_documents(case: dict, api_key: str = "") -> tuple[str, list[str]]:
+    """Read every file in a sample case's directory into one combined blob + names."""
+    base = os.path.join(SAMPLES_DIR, case.get("dir", ""))
     texts, names = [], []
-    for fname in list_sample_files():
+    for fname in case.get("files") or _list_files_in(base):
         try:
-            text = extract_text_from_path(os.path.join(SAMPLES_DIR, fname), api_key)
+            text = extract_text_from_path(os.path.join(base, fname), api_key)
         except Exception:  # noqa: BLE001
             text = ""
         if text.strip():
@@ -336,16 +364,17 @@ HERO = """
 if phase == "input":
     st.markdown(HERO, unsafe_allow_html=True)
 
-    sample_files = list_sample_files()
-    if sample_files:
-        if st.button("📂  Try sample case study — analyze a startup",
-                     use_container_width=True):
-            st.session_state.sample_loaded = True
-            st.session_state.query_text = sample_case_query()
-        st.caption(
-            f"Loads the bundled startup files ({len(sample_files)}) + a VC "
-            "due-diligence prompt — or upload your own below."
-        )
+    sample_cases = list_sample_cases()
+    if sample_cases:
+        st.caption("Try a bundled case study, or upload your own documents below.")
+        cols = st.columns(len(sample_cases))
+        for col, case in zip(cols, sample_cases):
+            label = f"{case.get('emoji', '📂')}  {case.get('label', 'Sample case')}"
+            if col.button(label, use_container_width=True, help=case.get("blurb", "")):
+                st.session_state.sample_loaded = True
+                st.session_state.sample_case_id = case["id"]
+                st.session_state.query_text = case.get("query", "")
+                st.rerun()
 
     st.subheader("Documents (optional)")
     uploaded = st.file_uploader(
@@ -358,11 +387,21 @@ if phase == "input":
         st.session_state.sample_loaded = False  # uploads take precedence over the sample
         st.caption("📎 Using " + ", ".join(f"**{u.name}**" for u in uploaded))
     elif st.session_state.get("sample_loaded"):
-        cc = st.columns([4, 1])
-        cc[0].caption("📎 Sample case study: " + ", ".join(sample_files))
-        if cc[1].button("✕ Clear", use_container_width=True):
+        loaded = next(
+            (c for c in sample_cases if c["id"] == st.session_state.get("sample_case_id")),
+            None,
+        )
+        if loaded:
+            cc = st.columns([4, 1])
+            cc[0].caption(
+                f"📎 {loaded.get('emoji', '')} {loaded['label']}: "
+                + ", ".join(loaded["files"])
+            )
+            if cc[1].button("✕ Clear", use_container_width=True):
+                st.session_state.sample_loaded = False
+                st.rerun()
+        else:
             st.session_state.sample_loaded = False
-            st.rerun()
 
     st.subheader("Research query")
     query = st.text_area(
@@ -385,6 +424,7 @@ if phase == "input":
             st.session_state.pending_sample = bool(
                 st.session_state.get("sample_loaded") and not uploaded
             )
+            st.session_state.pending_sample_case_id = st.session_state.get("sample_case_id")
             st.session_state.pending_query = query.strip()
             st.session_state.pop("report", None)
             goto("running")
@@ -417,7 +457,7 @@ def render_report(query: str, r: dict):
         f"""<div class="verdict-box">
           <span class="badge" style="background:{color}22;color:{color};border:1px solid {color}">
             {conf.upper()} CONFIDENCE</span>
-          <h3 style="margin-top:.6rem">{r.get('investment_verdict','')}</h3>
+          <h3 style="margin-top:.6rem">{r.get('bottom_line','')}</h3>
         </div>""",
         unsafe_allow_html=True,
     )
@@ -531,7 +571,13 @@ if phase == "running":
                         names.append(fname)
                 document_text = "\n\n".join(texts)
             elif st.session_state.get("pending_sample"):
-                document_text, names = load_sample_documents(api_key)
+                case = next(
+                    (c for c in list_sample_cases()
+                     if c["id"] == st.session_state.get("pending_sample_case_id")),
+                    None,
+                )
+                if case:
+                    document_text, names = load_sample_documents(case, api_key)
             if names:
                 status.write(f"✓ Read {len(names)} document(s): {', '.join(names)}")
 
