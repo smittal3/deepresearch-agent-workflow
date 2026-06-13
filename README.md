@@ -67,6 +67,43 @@ Your browser opens at http://localhost:8501.
 
 ---
 
+## 🪟 Windows quick start (copy-paste)
+
+A clean top-to-bottom path for a teammate on Windows starting from nothing:
+
+**1. Install Python 3.11** from [python.org](https://www.python.org/downloads/) — on the
+first installer screen, **tick "Add python.exe to PATH"** before clicking Install.
+(Python 3.9 will *not* work.)
+
+**2. Get the code** — either `git clone <repo-url>`, or download the repo as a ZIP
+(green **Code** button → *Download ZIP*) and extract it.
+
+**3. Open the folder in a terminal.** In File Explorer, open the project folder, type
+`cmd` in the address bar, and press Enter — that opens Command Prompt already in the
+right directory.
+
+**4. One-time setup:**
+```bat
+setup.bat
+```
+(or just double-click `setup.bat` in Explorer). This builds a `.venv` and installs
+everything — first run takes a few minutes.
+
+**5. Add your Gemini key** — copy `.env.example` to `.env` and paste your key in, *or*
+skip this and paste it into the app's sidebar at runtime.
+
+**6. Launch (now and every time after):**
+```bat
+run.bat
+```
+The app opens in your browser at http://localhost:8501.
+
+> **If you hit an error about Python syntax / `LLM | None`:** your default `python` is
+> older than 3.10. Install Python 3.11 and make sure it's on PATH, then delete the
+> `.venv` folder and re-run `setup.bat`.
+
+---
+
 ## Using it
 
 1. Click **Try sample case study** (loads the bundled startup files + a VC prompt in

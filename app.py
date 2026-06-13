@@ -6,6 +6,7 @@ decision-ready dashboard. Powered end-to-end by a single Google Gemini key.
 """
 from __future__ import annotations
 
+import html
 import io
 import json
 import os
@@ -58,12 +59,30 @@ st.markdown(
         background:#171A23; border:1px solid #262B38; border-radius:14px;
         padding:.8rem 1rem;
       }
+      .dp-grid {
+        display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));
+        gap:.7rem; margin:.2rem 0 .4rem;
+      }
       .dp-card {
         background:#171A23; border:1px solid #262B38; border-radius:14px;
-        padding:.85rem 1rem; height:100%;
+        padding:.85rem 1rem; display:flex; flex-direction:column;
       }
-      .dp-label { color:#9AA3B2; font-size:.82rem; margin-bottom:.2rem; }
-      .dp-value { font-size:1.5rem; font-weight:700; line-height:1.15; }
+      .dp-label { color:#9AA3B2; font-size:.82rem; margin-bottom:.25rem; }
+      .dp-value {
+        font-size:1.5rem; font-weight:700; line-height:1.2; overflow-wrap:anywhere;
+      }
+      .dp-value.long { font-size:1.02rem; line-height:1.3; }
+      .dp-cites { margin-top:auto; padding-top:.3rem; }
+      .flag-card {
+        background:#1d1614; border:1px solid #3a2420; border-left:4px solid #ef4444;
+        border-radius:10px; padding:.7rem .9rem; margin:.45rem 0; color:#ecd9d5;
+        font-size:.92rem; line-height:1.45;
+      }
+      .flag-ok {
+        background:#14201a; border:1px solid #21402f; border-left:4px solid #22c55e;
+        border-radius:10px; padding:.7rem .9rem; margin:.45rem 0; color:#cfe9d8;
+        font-size:.92rem;
+      }
       .cite {
         display:inline-block; text-decoration:none; font-size:.72rem; font-weight:700;
         background:#7C6CF022; color:#9d92f5; border:1px solid #7C6CF0; border-radius:6px;
@@ -484,25 +503,38 @@ def render_report(query: str, r: dict):
     data_points = r.get("key_data_points", [])
     if data_points:
         st.markdown("##### 📊 Key data points")
-        cols = st.columns(min(4, len(data_points)))
-        for col, dp in zip(cols, data_points):
-            col.markdown(
-                f"<div class='dp-card'><div class='dp-label'>{dp.get('label','')}</div>"
-                f"<div class='dp-value'>{dp.get('value','')}</div>"
-                f"{cite_chips(dp.get('source_ids', []))}</div>",
-                unsafe_allow_html=True,
+        cards = []
+        for dp in data_points:
+            value = str(dp.get("value", ""))
+            long = " long" if len(value) > 22 else ""  # shrink the font for sentence-y values
+            chips = cite_chips(dp.get("source_ids", []))
+            cards.append(
+                f"<div class='dp-card'>"
+                f"<div class='dp-label'>{dp.get('label','')}</div>"
+                f"<div class='dp-value{long}'>{value}</div>"
+                f"<div class='dp-cites'>{chips}</div></div>"
             )
+        st.markdown(f"<div class='dp-grid'>{''.join(cards)}</div>", unsafe_allow_html=True)
 
     # ---- Red flags (the value-add, kept visible) ----
     st.markdown("##### ⚠️ Contradictions & red flags")
     if contradictions:
-        for c in contradictions:
-            st.warning(c)
+        st.markdown(
+            "".join(
+                f"<div class='flag-card'>⚠️&nbsp; {html.escape(str(c))}</div>"
+                for c in contradictions
+            ),
+            unsafe_allow_html=True,
+        )
     else:
-        st.success("No contradictions detected — the sources are consistent with each other.")
+        st.markdown(
+            "<div class='flag-ok'>✓&nbsp; No contradictions detected — the sources are "
+            "consistent with each other.</div>",
+            unsafe_allow_html=True,
+        )
 
-    # ---- Everything else tucked into expanders ----
-    with st.expander("📝 Detailed analysis"):
+    # ---- Detailed analysis (open by default, but collapsible) ----
+    with st.expander("📝 Detailed analysis", expanded=True):
         st.markdown("**🌐 Web & market sentiment**")
         st.markdown(r.get("sentiment_analysis", "_(none)_"))
         st.markdown("**🔬 Technical & academic reality**")
