@@ -8,12 +8,29 @@ from __future__ import annotations
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from llm import get_embed_model, get_llm
+from llm import get_llm
 from state import ResearchReport, ResearchState
 
 
+def _text(resp) -> str:
+    """Return an LLM response's text, whether `.content` is a plain string or a list
+    of content blocks (some multimodal models return the latter)."""
+    content = getattr(resp, "content", resp)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                parts.append(block.get("text", ""))
+        return "".join(parts)
+    return str(content)
+
+
 # --------------------------------------------------------------------------- #
-# Agent 1 — RAG: the internal document reader (LlamaIndex)
+# Agent 1 — RAG: the internal document reader (direct doc-in-context, no embeddings)
 # --------------------------------------------------------------------------- #
 RAG_SYSTEM = (
     "You are a meticulous Document Analyst. Read the provided excerpts from the user's "
@@ -36,33 +53,29 @@ RAG_SYSTEM = (
 )
 
 
+# Char budget for the document(s) passed to the model. OpenRouter has no embeddings
+# endpoint, so instead of a vector index we pass the document text directly (the model
+# does the "retrieval"). This is simpler and reliable for typical doc sizes; very large
+# docs are truncated with a note.
+MAX_DOC_CHARS = 28000
+
+
 def rag_agent(state: ResearchState) -> dict:
     if not state.get("has_document"):
         return {"rag_notes": "No internal document was provided by the user."}
 
-    api_key = state["api_key"]
-    try:
-        from llama_index.core import Document, Settings, VectorStoreIndex
-        from llama_index.core.llms import MockLLM
+    document = state.get("document_text", "") or ""
+    context = document[:MAX_DOC_CHARS]
+    truncated = len(document) > MAX_DOC_CHARS
 
-        # We only use LlamaIndex for parse + embed + retrieve — never its LLM.
-        # MockLLM prevents it from trying to resolve a default (OpenAI) model.
-        Settings.llm = MockLLM()
-        Settings.embed_model = get_embed_model(api_key)
-
-        index = VectorStoreIndex.from_documents([Document(text=state["document_text"])])
-        nodes = index.as_retriever(similarity_top_k=10).retrieve(state["user_query"])
-        context = "\n\n---\n\n".join(n.get_content() for n in nodes)
-    except Exception as e:  # noqa: BLE001 - degrade gracefully
-        return {"rag_notes": f"[RAG error] Could not index/retrieve from the document: {e}"}
-
-    llm = get_llm(state["model"], api_key, temperature=0.1)
+    llm = get_llm(state["model"], state["api_key"], temperature=0.1)
     human = (
         f"User's research query:\n{state['user_query']}\n\n"
-        f"Relevant excerpts from the internal document:\n{context}"
+        f"Internal document(s):\n{context}"
+        + ("\n\n[Note: the document was truncated to fit the context window.]" if truncated else "")
     )
     resp = llm.invoke([SystemMessage(content=RAG_SYSTEM), HumanMessage(content=human)])
-    return {"rag_notes": resp.text}
+    return {"rag_notes": _text(resp)}
 
 
 # --------------------------------------------------------------------------- #
@@ -107,7 +120,7 @@ def web_agent(state: ResearchState) -> dict:
                 HumanMessage(content=state["user_query"]),
             ]
         )
-        queries = [ln.strip("-• ").strip() for ln in q_resp.text.splitlines() if ln.strip()][:3]
+        queries = [ln.strip("-• ").strip() for ln in _text(q_resp).splitlines() if ln.strip()][:3]
     except Exception:  # noqa: BLE001
         queries = []
     if not queries:
@@ -144,7 +157,7 @@ def web_agent(state: ResearchState) -> dict:
     blob = "\n".join(snippets[:20])
     human = f"Research goal:\n{state['user_query']}\n\nSearch results:\n{blob}"
     resp = llm.invoke([SystemMessage(content=WEB_SYSTEM), HumanMessage(content=human)])
-    return {"web_notes": resp.text, "web_sources": sources[:10]}
+    return {"web_notes": _text(resp), "web_sources": sources[:10]}
 
 
 # --------------------------------------------------------------------------- #
@@ -182,7 +195,8 @@ def academic_agent(state: ResearchState) -> dict:
                 ),
                 HumanMessage(content=state["user_query"]),
             ]
-        ).text.strip()
+        )
+        keywords = _text(keywords).strip()
     except Exception:  # noqa: BLE001
         keywords = state["user_query"]
 
@@ -221,7 +235,7 @@ def academic_agent(state: ResearchState) -> dict:
     resp = llm.invoke(
         [SystemMessage(content=ACADEMIC_SYSTEM), HumanMessage(content=human)]
     )
-    return {"academic_notes": resp.text, "academic_sources": sources}
+    return {"academic_notes": _text(resp), "academic_sources": sources}
 
 
 # --------------------------------------------------------------------------- #
@@ -281,7 +295,9 @@ def _build_sources(state: ResearchState) -> list[dict]:
 
 def synthesis_agent(state: ResearchState) -> dict:
     llm = get_llm(state["model"], state["api_key"], temperature=0.2)
-    structured = llm.with_structured_output(ResearchReport)
+    # function_calling is the most broadly supported structured-output method across
+    # OpenRouter models (json_schema/response_format isn't honored by all of them).
+    structured = llm.with_structured_output(ResearchReport, method="function_calling")
 
     sources = _build_sources(state)
     if sources:

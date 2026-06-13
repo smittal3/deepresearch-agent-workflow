@@ -2,7 +2,7 @@
 # One-time setup for macOS / Linux. Run:  bash setup.sh
 set -e
 
-# Prefer a modern Python (3.10+ required; llama-index needs PEP 604 unions).
+# Prefer a modern Python (3.10+ required; some deps need PEP 604 unions).
 PY=""
 for c in python3.11 python3.12 python3.13 python3.10 python3 python; do
   if command -v "$c" >/dev/null 2>&1; then PY="$c"; break; fi
@@ -18,5 +18,5 @@ pip install -r requirements.txt
 
 echo ""
 echo "✅ Setup complete."
-echo "Next: copy .env.example to .env and add your Gemini key (or paste it in the app sidebar)."
+echo "Next: copy .env.example to .env and add your OpenRouter key (or paste it in the app sidebar)."
 echo "Then run:  bash run.sh"

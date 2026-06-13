@@ -34,5 +34,5 @@ pointing `dir` at the folder. No code changes needed. A case whose folder has no
 readable files is automatically hidden.
 
 **Image-based PDFs are supported:** if a PDF has no extractable text layer (e.g. a
-pitch deck exported as images), the app automatically transcribes it with Gemini's
-native PDF vision — no OCR install required.
+pitch deck exported as images), the app automatically transcribes it with a vision
+model via OpenRouter (pages rasterized with PyMuPDF) — no OCR install required.

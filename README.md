@@ -6,8 +6,8 @@ a decision-ready dashboard — _"how competitive is this, and should I invest?"_
 
 | Agent | Role | Tech |
 |---|---|---|
-| 📄 **Document Analyst** | Extracts claims & metrics from your file (PDF/DOCX/PPTX/TXT) | LlamaIndex RAG (in-memory vector index) |
-| 🌐 **Market Researcher** | Web sentiment, competitors, traction | DuckDuckGo search |
+| 📄 **Document Analyst** | Extracts claims & metrics from your file (PDF/DOCX/PPTX/TXT) | Document-in-context reading |
+| 🌐 **Web Researcher** | Current sources, consensus & disagreement | DuckDuckGo search |
 | 🔬 **Technical Validator** | Validates the underlying science | arXiv |
 | 🧠 **Senior Analyst** | Cross-examines all sources → JSON report | LangChain structured output |
 
@@ -21,15 +21,16 @@ then the analyst synthesizes). UI is **Streamlit**.
 - 🎯 **Adaptive scorecard** — the analyst picks 3-5 evaluation dimensions that fit
   *your* query (a startup vs. a scientific claim get different rubrics), each scored 1-5.
 
-> **One key for everything.** All four agents *and* the RAG embeddings run on
-> **Google Gemini**, so each teammate only needs a single free `GOOGLE_API_KEY`.
+> **One key for everything.** All four agents *and* the image-PDF vision OCR run
+> through **OpenRouter**, so each teammate only needs a single `OPENROUTER_API_KEY`.
+> Swap the model in `llm.py` to any OpenRouter model id.
 
 ---
 
 ## Quick start
 
-### 0. Get a free API key (30 seconds)
-Go to **https://aistudio.google.com/app/apikey** → **Create API key** → copy it.
+### 0. Get an API key (30 seconds)
+Go to **https://openrouter.ai/keys** → **Create Key** → copy it.
 
 ### 1. Setup
 
@@ -89,7 +90,7 @@ setup.bat
 (or just double-click `setup.bat` in Explorer). This builds a `.venv` and installs
 everything — first run takes a few minutes.
 
-**5. Add your Gemini key** — copy `.env.example` to `.env` and paste your key in, *or*
+**5. Add your OpenRouter key** — copy `.env.example` to `.env` and paste your key in, *or*
 skip this and paste it into the app's sidebar at runtime.
 
 **6. Launch (now and every time after):**
@@ -109,7 +110,7 @@ The app opens in your browser at http://localhost:8501.
 1. Click **Try sample case study** (loads the bundled startup files + a VC prompt in
    one click), or **upload** your own PDF / DOCX / PPTX / TXT — *several at once is fine,
    and documents are optional.* Image-based PDFs (e.g. pitch decks exported as images)
-   are transcribed automatically via Gemini's PDF vision — no OCR install needed.
+   are transcribed automatically via a vision model (rasterized with PyMuPDF) — no OCR install needed.
 2. **Type your query.** Click **✨ Load sample** for a ready-made startup
    due-diligence prompt. Tip: name the **competitors/market** and the **core
    technology** so the web and academic agents know what to dig into.
@@ -128,7 +129,7 @@ app.py            Streamlit UI (inputs, live agent status, dashboard)
 graph.py          LangGraph wiring (parallel fan-out -> synthesis)
 agents.py         The four agents (each a graph node)
 state.py          Shared state TypedDict + ResearchReport output schema
-llm.py            Single-provider (Gemini) model + embedding factory
+llm.py            Single-provider (OpenRouter) model factory
 requirements.txt  Pinned, verified-working dependency set
 setup.* / run.*   Cross-platform setup & launch scripts
 ```
@@ -136,7 +137,9 @@ setup.* / run.*   Cross-platform setup & launch scripts
 ## Notes & troubleshooting
 - **Web search returns nothing / errors:** DuckDuckGo occasionally rate-limits.
   The app degrades gracefully (the analyst notes the gap); just re-run.
-- **Swap the LLM provider:** everything funnels through `llm.py` — change the two
-  factory functions and you've repointed all agents at once.
-- **Model choice:** pick `gemini-2.0-flash` (fast/free-tier) up to `gemini-2.5-pro`
-  (deeper) in the sidebar.
+- **Swap the model:** `MODEL` in `llm.py` takes any OpenRouter model id
+  (e.g. `openai/gpt-4o-mini`, `anthropic/claude-3.5-sonnet`). The synthesis report
+  needs a tool-calling model; image-PDF OCR needs a multimodal one (the default is both).
+- **No embeddings needed:** OpenRouter has no embeddings endpoint, so the Document
+  Analyst passes the document straight into context (no vector index) — simpler and
+  reliable for typical doc sizes; very large docs are truncated with a note.

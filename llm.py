@@ -1,43 +1,44 @@
 """Single-provider model factory.
 
-Everything (all four agents + the RAG embeddings) runs on Google Gemini, so the
-user only ever needs ONE key: GOOGLE_API_KEY. Swap the implementations here if you
-ever want to point the whole app at a different provider.
+Everything (all four agents + the image-PDF vision OCR) runs through OpenRouter, so
+the user only ever needs ONE key: OPENROUTER_API_KEY. OpenRouter is OpenAI-compatible,
+so we talk to it with `ChatOpenAI` pointed at its base URL. Swap the model strings or
+the client here to repoint the whole app at a different provider/model.
 """
 from __future__ import annotations
 
 import os
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
-# One model powers the whole app. Change this single line to swap it.
-# (gemini-3.1-pro-preview also works — it's newer but slower and in preview.)
-MODEL = "gemini-2.5-pro"
-EMBED_MODEL = "gemini-embedding-001"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+# One model powers the whole app. Change this single line to swap it — any OpenRouter
+# model id works (e.g. "openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet"). Structured
+# output (the synthesis report) needs a tool-calling model.
+MODEL = "google/gemini-2.5-flash"
+
+# Used to transcribe image-based PDFs (pitch decks). Must be a multimodal model; the
+# default chat model already is, so we reuse it.
+VISION_MODEL = MODEL
 
 
-def get_llm(model: str, api_key: str, temperature: float = 0.3) -> ChatGoogleGenerativeAI:
-    """Chat LLM used by every agent."""
-    return ChatGoogleGenerativeAI(
+def get_llm(model: str, api_key: str, temperature: float = 0.3) -> ChatOpenAI:
+    """Chat LLM used by every agent (and the vision OCR), via OpenRouter."""
+    return ChatOpenAI(
         model=model,
-        google_api_key=api_key,
+        api_key=api_key,
+        base_url=OPENROUTER_BASE_URL,
         temperature=temperature,
+        # Optional but recommended by OpenRouter for attribution / rankings.
+        default_headers={
+            "HTTP-Referer": "https://github.com/deep-research-agent",
+            "X-Title": "Deep Research Agent",
+        },
     )
 
 
-def get_embed_model(api_key: str):
-    """Embedding model used by the RAG agent's in-memory vector index."""
-    # Imported lazily so the app still starts even if this optional path has issues.
-    from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
-
-    return GoogleGenAIEmbedding(model_name=EMBED_MODEL, api_key=api_key)
-
-
 def set_global_key(api_key: str) -> None:
-    """Some SDKs read the key from the environment; mirror it there to be safe.
-
-    Only GOOGLE_API_KEY is set — the google-genai SDK warns if both GOOGLE_API_KEY
-    and GEMINI_API_KEY are present."""
+    """Mirror the key into the environment for any SDK that reads it from there."""
     if api_key:
-        os.environ["GOOGLE_API_KEY"] = api_key
-        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ["OPENROUTER_API_KEY"] = api_key

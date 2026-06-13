@@ -2,7 +2,7 @@
 
 Upload a document (a pitch deck, memo, or TXT), ask a question, and four agents
 (RAG / Web / Academic / Synthesis) investigate in parallel and return a
-decision-ready dashboard. Powered end-to-end by a single Google Gemini key.
+decision-ready dashboard. Powered end-to-end by a single OpenRouter key.
 """
 from __future__ import annotations
 
@@ -110,30 +110,57 @@ st.markdown(
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
-MIN_PDF_TEXT_CHARS = 200  # below this we assume an image-based PDF and use Gemini vision
-OCR_MODEL = "gemini-2.5-flash"  # fast/cheap model for transcription
+MIN_PDF_TEXT_CHARS = 200  # below this we assume an image-based PDF and use vision OCR
+MAX_OCR_PAGES = 20        # cap total pages transcribed per PDF
+OCR_BATCH_PAGES = 4       # pages per request — keeps each payload within OpenRouter limits
+OCR_DPI = 110             # render resolution; enough for legible slide text, smaller payload
 
 
-def pdf_text_via_gemini(data: bytes, api_key: str) -> str:
-    """Transcribe an image-based / scanned PDF using Gemini's native PDF support.
+def pdf_text_via_vision(data: bytes, api_key: str) -> str:
+    """Transcribe an image-based / scanned PDF via a vision model on OpenRouter.
 
-    Pitch decks are often exported as images, so pypdf finds no text layer. Since we
-    already depend on Gemini, we let it read the PDF directly — no OCR system deps."""
+    Pitch decks are often exported as images, so pypdf finds no text layer. OpenRouter
+    has no native PDF input, so we rasterize each page to a PNG (PyMuPDF) and send the
+    images to a multimodal model — no system OCR deps required."""
     try:
-        from google import genai
-        from google.genai import types
+        import base64
 
-        client = genai.Client(api_key=api_key)
-        resp = client.models.generate_content(
-            model=OCR_MODEL,
-            contents=[
-                types.Part.from_bytes(data=data, mime_type="application/pdf"),
-                "Transcribe ALL text and information from this document verbatim — "
-                "including text on slides, in charts, tables, and figures. Preserve "
-                "numbers and labels exactly. Output plain text only, no commentary.",
-            ],
+        import fitz  # PyMuPDF
+        from langchain_core.messages import HumanMessage
+
+        from llm import VISION_MODEL, get_llm
+
+        prompt = (
+            "Transcribe ALL text and information from these pages/slides verbatim — "
+            "including text in charts, tables, and figures. Preserve numbers and "
+            "labels exactly. Output plain text only, no commentary."
         )
-        return (resp.text or "").strip()
+        doc = fitz.open(stream=data, filetype="pdf")
+        pages = list(doc)[:MAX_OCR_PAGES]
+        llm = get_llm(VISION_MODEL, api_key, temperature=0)
+
+        parts: list[str] = []
+        # Send pages in small batches — a whole deck in one request exceeds the payload limit.
+        for start in range(0, len(pages), OCR_BATCH_PAGES):
+            content: list[dict] = [{"type": "text", "text": prompt}]
+            for page in pages[start:start + OCR_BATCH_PAGES]:
+                png = page.get_pixmap(dpi=OCR_DPI).tobytes("png")
+                b64 = base64.b64encode(png).decode()
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{b64}"},
+                })
+            try:
+                resp = llm.invoke([HumanMessage(content=content)])
+                out = resp.content
+                if isinstance(out, list):  # some models return content blocks
+                    out = "".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in out)
+                if out and out.strip():
+                    parts.append(out.strip())
+            except Exception:  # noqa: BLE001 - skip a failed batch, keep the rest
+                continue
+        doc.close()
+        return "\n\n".join(parts).strip()
     except Exception:  # noqa: BLE001
         return ""
 
@@ -161,7 +188,7 @@ def extract_text_from_bytes(filename: str, data: bytes, api_key: str = "") -> st
         reader = PdfReader(io.BytesIO(data))
         text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
         if len(text) < MIN_PDF_TEXT_CHARS and api_key:
-            ocr = pdf_text_via_gemini(data, api_key)
+            ocr = pdf_text_via_vision(data, api_key)
             if len(ocr) > len(text):
                 return ocr
         return text
@@ -324,7 +351,7 @@ CONF_COLORS = {"high": "#22c55e", "medium": "#f59e0b", "low": "#ef4444"}
 with st.sidebar:
     st.header("⚙️ Setup")
 
-    env_key = os.getenv("GOOGLE_API_KEY", "")
+    env_key = os.getenv("OPENROUTER_API_KEY", "").strip()
     if env_key:
         # Key already provided via .env / environment — no need to paste anything.
         st.success("✓ API key detected from `.env`")
@@ -336,17 +363,16 @@ with st.sidebar:
         api_key = override.strip() or env_key
     else:
         api_key = st.text_input(
-            "Google Gemini API key",
+            "OpenRouter API key",
             type="password",
-            help="One key powers all four agents + embeddings.",
-            placeholder="AIza...",
+            help="One OpenRouter key powers all four agents.",
+            placeholder="sk-or-...",
         ).strip()
-        with st.expander("🔑 How to get a free key"):
+        with st.expander("🔑 How to get a key"):
             st.markdown(
-                "1. Go to **[aistudio.google.com/app/apikey]"
-                "(https://aistudio.google.com/app/apikey)**\n"
-                "2. Click **Create API key**\n"
-                "3. Paste it above, or add it to a `.env` file as `GOOGLE_API_KEY=...`"
+                "1. Go to **[openrouter.ai/keys](https://openrouter.ai/keys)**\n"
+                "2. Click **Create Key**\n"
+                "3. Paste it above, or add it to a `.env` file as `OPENROUTER_API_KEY=...`"
             )
 
     st.caption(f"Model: **{MODEL}**")
@@ -432,7 +458,7 @@ if phase == "input":
 
     if st.button("🚀  Run Deep Research", type="primary", use_container_width=True):
         if not api_key:
-            st.error("⚠️ Add your Google Gemini API key in the sidebar to run.")
+            st.error("⚠️ Add your OpenRouter API key in the sidebar to run.")
         elif not query.strip():
             st.error("⚠️ Enter a research query first.")
         else:
